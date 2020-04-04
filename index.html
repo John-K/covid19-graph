@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en-US">
+	<head>
+		<!-- by John Kelley <john@kelley.ca> -->
+		<!-- License: MIT -->
+		<title>COVID-19 New York Times Data</title>
+		<meta charset="utf-8">
+		<link rel="stylesheet" type="text/css" href="https://uicdn.toast.com/tui-tree/latest/tui-tree.css">
+		<link rel="stylesheet" type="text/css" href="https://uicdn.toast.com/tui.chart/latest/tui-chart.min.css" />
+		<script type="text/javascript" src="https://rawgit.com/nhnent/tui.code-snippet/v1.3.0/dist/tui-code-snippet.js"></script>
+		<script type="text/javascript" src="https://rawgit.com/nhnent/raphael/v2.2.0b/raphael.js"></script>
+		<script type="text/javascript" src="https://uicdn.toast.com/tui.chart/latest/tui-chart.min.js"></script>
+		<script type="text/javascript" charset="utf-8" src="papaparse.min.js"></script>
+		<script src="https://uicdn.toast.com/tui-tree/latest/tui-tree.js"></script>
+		<script>
+			let by_state = new Map();
+			var state_tree;
+			let state_population = {
+				"California": 39512223,
+				"Texas": 28995881,
+				"Florida": 21477737,
+				"New York": 19453561,
+				"Pennsylvania": 12801989,
+				"Illinois": 12671821,
+				"Ohio": 11689100,
+				"Georgia": 10617423,
+				"North Carolina": 10488084,
+				"Michigan": 9986857,
+				"New Jersey": 8882190,
+				"Virginia": 8535519,
+				"Washington": 7614893,
+				"Arizona": 7278717,
+				"Massachusetts": 6949503,
+				"Tennessee": 6833174,
+				"Indiana": 6732219,
+				"Missouri": 6137428,
+				"Maryland": 6045680,
+				"Wisconsin": 5822434,
+				"Colorado": 5758736,
+				"Minnesota": 5639632,
+				"South Carolina": 5148714,
+				"Alabama": 4903185,
+				"Louisiana": 4648794,
+				"Kentucky": 4467673,
+				"Oregon": 4217737,
+				"Oklahoma": 3956971,
+				"Connecticut": 3565287,
+				"Utah": 3205958,
+				"Puerto Rico": 3193694,
+				"Iowa": 3155070,
+				"Nevada": 3080156,
+				"Arkansas": 3017825,
+				"Mississippi": 2976149,
+				"Kansas": 2913314,
+				"New Mexico": 2096829,
+				"Nebraska": 1934408,
+				"West Virginia": 1792065,
+				"Idaho": 1787147,
+				"Hawaii": 1415872,
+				"New Hampshire": 1359711,
+				"Maine": 1344212,
+				"Montana": 1068778,
+				"Rhode Island": 1059361,
+				"Delaware": 973764,
+				"South Dakota": 884659,
+				"North Dakota": 762062,
+				"Alaska": 731545,
+				"District of Columbia": 705749,
+				"Vermont": 623989,
+				"Wyoming": 578759,
+				"Guam": 165718,
+				"U.S. Virgin Islands": 104914,
+				"American Samoa": 55641,
+				"Northern Mariana Islands": 55194,
+			};
+			function populateChart(by_state, enabledStates, chartElement, title, dataLabel, daily=false) {
+				let series_data = new Array();
+				let days = by_state.get('California').get('date');
+				by_state.forEach( function(value, key) {
+					if (enabledStates.length == 0 || enabledStates.includes(key)) {
+						var data = [];
+						let delta = days.length - value.get(dataLabel).length;
+						let values = [...value.get(dataLabel)];
+
+						// correct for some states missing data, assume leading 0 days
+						if (delta != 0) {
+							data = new Array(delta).fill(0);
+						}
+
+						if (daily) {
+							var new_values = [];
+							let prev = 0;
+							values.forEach(function(daily_val) {
+								new_values.push(daily_val-prev);
+								prev = daily_val;
+							});
+							values = new_values;
+						}
+
+						if (document.getElementById('percapita-check').checked) {
+							for (i = 0; i < values.length; i++) {
+								values[i] = 1000000.0 * values[i] / state_population[key];
+							}
+						}
+
+						data = data.concat(values);
+
+						map = new Object();
+						map.name = key;
+						map.data = data;
+						series_data.push(map);
+					}
+				});
+				var data = {
+					categories: days,
+					series: series_data
+				};
+				var leader = "Cumulative ";
+				if (daily) {
+					leader = "Daily new ";
+				}
+				
+				let units = "";
+				if (document.getElementById('percapita-check').checked) {
+					units = " (per million)";
+				}
+				var options = {
+					chart: {
+						width: 1160,
+						height: 540,
+						title: leader + title
+					},
+					plot: {
+						hideLine: true
+					},
+					yAxis: {
+						title: title + units
+					},
+					xAxis: {
+						title: "Date",
+						pointOnColumn: true,
+						dateFormat: 'MM-DD',
+						tickInterval: 'auto'
+					},
+					series: {
+						showDot: false,
+						zoomable: true
+					},
+				
+				};
+				var chart = tui.chart.lineChart(
+					chartElement,
+					data,
+					options);
+			};
+
+			function populateStateTree(by_state) {
+				var states = [];
+				var data = [];
+				var states_nodes = [];
+				by_state.forEach(function(value, key) {
+					states.push(key);
+				});
+				states.sort();
+				
+				states.forEach(function(value) {
+					obj = new Object();
+					obj.text = value;
+					states_nodes.push(obj)
+				});
+				obj = new Object();
+				obj.text = 'States to render';
+				obj.children = states_nodes;
+				data.push(obj);
+				state_tree = new tui.Tree('#tree', {
+					data: data,
+					nodeDefaultState: 'opened',
+					template: {
+				                internalNode:
+				                    '<div class="tui-tree-content-wrapper" style="padding-left: {{indent}}px">' +
+				                        '<button type="button" class="tui-tree-toggle-btn tui-js-tree-toggle-btn">' +
+				                            '<span class="tui-ico-tree"></span>' +
+				                            '{{stateLabel}}' +
+				                        '</button>' +
+				                        '<span class="tui-tree-text tui-js-tree-text">' +
+				                            '<label class="tui-checkbox">' +
+				                        	   '<span class="tui-ico-check"><input type="checkbox" class="tui-tree-checkbox"></span>' +
+				                        	'</label>' +
+				                            '{{text}}' +
+				                        '</span>' +
+				                    '</div>' +
+				                    '<ul class="tui-tree-subtree tui-js-tree-subtree">{{children}}</ul>',
+				                leafNode:
+				                    '<div class="tui-tree-content-wrapper" style="padding-left: {{indent}}px">' +
+				                        '<span class="tui-tree-text tui-js-tree-text">' +
+				                            '<label class="tui-checkbox">' +
+				                               '<span class="tui-ico-check"><input type="checkbox" class="tui-tree-checkbox"></span>' +
+				                            '</label>' +
+				                            '{{text}}' +
+				                        '</span>' +
+				                    '</div>'
+					}
+				}).enableFeature('Checkbox', {
+					checkboxClassName: 'tui-tree-checkbox',
+				});
+			};
+
+			function drawCharts() {
+				Papa.parse("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-states.csv", {
+					download: true,
+					header: true,
+					dynamicTyping: true,
+					complete: function(results) {
+						results.data.forEach( function(value) {
+							let month = parseInt(value['date'].split("-")[1])
+							if (! by_state.has(value['state'])) {
+								state_map = new Map();
+								state_map.set('date', new Array());
+								state_map.set('cases', new Array());
+								state_map.set('deaths', new Array());
+								by_state.set(value['state'], state_map);
+							};
+							// Only graph from March onwards
+							if (month >= 3) {
+								state = by_state.get(value['state']);
+								state.get('date').push(value['date'].replace("2020-", ""));
+								state.get('deaths').push(value['deaths']);
+								state.get('cases').push(value['cases']);
+							}
+						});
+						populateStateTree(by_state);
+						populateChart(by_state, [], document.getElementById('chart-cases-area'), 'Cases', 'cases');
+						populateChart(by_state, [], document.getElementById('chart-cases-daily-area'), 'Cases', 'cases', true);
+						populateChart(by_state, [], document.getElementById('chart-deaths-area'), 'Deaths', 'deaths');
+						populateChart(by_state, [], document.getElementById('chart-deaths-daily-area'), 'Deaths', 'deaths', true);
+
+					}
+				});
+			};
+
+			function updateCharts() {
+				console.log("Per capita checked? " + document.getElementById('percapita-check').checked);
+				checked_nodes = state_tree.getCheckedList();
+				let checked = new Array();
+				checked_nodes.forEach(function(node) {
+					// work around bug that tui-tree-node-0 doesn't exist and -1 is the parent node
+					if (node != "tui-tree-node-0" && node != "tui-tree-node-1") {
+						checked.push(document.getElementById(node).textContent);
+					}
+				});
+				console.log(checked);
+				document.getElementById('chart-cases-area').innerHTML = "";
+				document.getElementById('chart-cases-daily-area').innerHTML = "";
+				document.getElementById('chart-deaths-area').innerHTML = "";
+				document.getElementById('chart-deaths-daily-area').innerHTML = "";
+				populateChart(by_state, checked, document.getElementById('chart-cases-area'), 'Cases', 'cases');
+				populateChart(by_state, checked, document.getElementById('chart-cases-daily-area'), 'Cases', 'cases', true);
+				populateChart(by_state, checked, document.getElementById('chart-deaths-area'), 'Deaths', 'deaths');
+				populateChart(by_state, checked, document.getElementById('chart-deaths-daily-area'), 'Deaths', 'deaths', true);
+			};
+			
+		</script>
+	</head>
+	<body onload="drawCharts();">
+		<h2>US COVID-19 data courtesy of <a href="https://github.com/nytimes/covid-19-data">New York Times</a></h2>
+		<p>Additional resources:<ul>
+			<li><a href="https://covid19.healthdata.org/projections">IHME Projections</a></li>
+			<li><a href="https://covidtracking.com">The COVID Tracking Project</a></li>
+		</ul></p>
+		<details>
+			<summary>Controls</summary>
+			<table><tr>
+				<td><div id="tree" class="state-select-tree" style="height: 300px; overflow: scroll"></div></td>
+				<td valign="top">
+					<input id="percapita-check" type="checkbox">Chart values per million residents</input><br/>
+					<button onClick="updateCharts()">Update Charts</button>
+					
+				</td>
+			</tr></table>
+
+		</details>
+		<div id="chart-cases-area"></div>
+		<div id="chart-cases-daily-area"></div>
+		<div id="chart-deaths-area"></div>
+		<div id="chart-deaths-daily-area"></div>
+	</body>
+</html>
+
